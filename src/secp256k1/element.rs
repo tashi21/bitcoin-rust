@@ -48,7 +48,7 @@ impl Element {
 
 impl Display for Element {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "SECP256K1_Field_{}", self.num)
+        write!(f, "{}", self.num)
     }
 }
 

@@ -3,6 +3,7 @@ use {
         constants::{B, SECP256K1_ORDER_RING},
         element::Element,
         errors::SECP256K1CurveError,
+        signature::Signature,
     },
     anyhow::{bail, Result},
     ibig::{modular::IntoModulo, IBig, UBig},
@@ -22,6 +23,21 @@ pub struct Point {
     y: Option<Element>,
 }
 
+impl Display for Point {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if self.x.is_none() {
+            return write!(f, "INF");
+        }
+
+        write!(
+            f,
+            "({}, {})",
+            self.x.as_ref().unwrap(),
+            self.y.as_ref().unwrap(),
+        )
+    }
+}
+
 impl Point {
     /// A point on the SECP256K1 Curve
     pub fn new(x: Option<Element>, y: Option<Element>) -> Result<Self> {
@@ -33,8 +49,9 @@ impl Point {
             (None, Some(y)) => bail!(SECP256K1CurveError::InvalidPoint(None, Some(y))),
 
             (Some(x), Some(y)) => {
+                // y^2
                 let rhs = y.pow(IBig::from(2));
-                // xbu^3 + B
+                // x^3 + B
                 let lhs = B.with(|b| x.pow(IBig::from(3)) + b);
 
                 if rhs != lhs {
@@ -58,21 +75,8 @@ impl Point {
     pub fn is_inf(&self) -> bool {
         self.x.is_none()
     }
-}
 
-impl Display for Point {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if self.x.is_none() {
-            return write!(f, "SECP256K1_Curve_INF");
-        }
-
-        write!(
-            f,
-            "SECP256K1_Curve_{}{}",
-            self.x.as_ref().unwrap(),
-            self.y.as_ref().unwrap(),
-        )
-    }
+    pub fn verify(&self, z: UBig, signature: Signature) {}
 }
 
 impl Add for Point {
@@ -80,45 +84,43 @@ impl Add for Point {
 
     /// Add two points on the SECP256K1 Curve
     fn add(self, rhs: Self) -> Self::Output {
-        // self is infinity point
-        if self.x.is_none() {
-            return rhs;
-        }
+        match (&self.x, &self.y, &rhs.x, &rhs.y) {
+            // self is infinity point
+            (None, _, _, _) => rhs,
 
-        // rhs is infinity point
-        if rhs.x.is_none() {
-            return self;
-        }
-        // x coordinates are not none, hence y coordinates are also not none
-        let x1 = self.x.as_ref().unwrap();
-        let x2 = rhs.x.as_ref().unwrap();
-        let y1 = self.y.as_ref().unwrap();
-        let y2 = rhs.y.as_ref().unwrap();
+            // rhs is infinity point
+            (_, _, None, _) => self,
 
-        // additive inverse
-        if x1 == x2 && y1 != y2 {
-            return Self::inf();
-        }
+            // both points have some values
+            (Some(x1), Some(y1), Some(x2), Some(y2)) => {
+                // adding additive inverses
+                if x1 == x2 && y1 != y2 {
+                    return Self::inf();
+                }
 
-        let slope = if self == rhs {
-            // points are same
-            // y coordinates are zero
-            if y1.is_zero() {
-                return Self::inf();
+                // initialise slope as if points are different
+                let mut slope = (y2 - y1) / (x2 - x1);
+
+                // points are same
+                if x1 == x2 {
+                    // line will be a tangent if y co-ordinates are 0
+                    if y1.is_zero() {
+                        return Self::inf();
+                    }
+
+                    // y co-ordinates are not zero
+                    let two = Element::new(UBig::from(2_u8)).unwrap();
+                    let three = Element::new(UBig::from(3_u8)).unwrap();
+                    // overwrite slope with new calculation
+                    slope = (three * x1.pow(IBig::from(2))) / (two * y1);
+                }
+
+                let x3 = slope.pow(IBig::from(2)) - x1 - x2;
+                let y3 = slope * (x1 - &x3) - y1;
+
+                Self::new(Some(x3), Some(y3)).unwrap()
             }
-            (Element::new(UBig::from(3_u8)).unwrap() * x1.pow(IBig::from(2)))
-                / (Element::new(UBig::from(2_u8)).unwrap() * y1)
-        } else {
-            // points have no same coordinates
-            (y2 - y1) / (x2 - x1)
-        };
-
-        let x3 = slope.pow(IBig::from(2)) - x1 - x2;
-        let y3 = slope * (x1 - &x3) - y1;
-
-        Self {
-            x: Some(x3),
-            y: Some(y3),
+            _ => Self::inf(),
         }
     }
 }

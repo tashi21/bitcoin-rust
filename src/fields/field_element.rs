@@ -190,7 +190,7 @@ impl Sub for &FieldElement {
             num: (self.num.clone().into_modulo(&self.ring)
                 - rhs.num.clone().into_modulo(&self.ring))
             .residue(),
-            ring: ModuloRing::new(&self.prime()),
+            ring: ModuloRing::new(&self.prime),
             prime: self.prime.clone(),
         }
     }
@@ -258,7 +258,7 @@ impl Mul for &FieldElement {
             num: (self.num.clone().into_modulo(&self.ring)
                 * rhs.num.clone().into_modulo(&self.ring))
             .residue(),
-            ring: ModuloRing::new(&self.prime()),
+            ring: ModuloRing::new(&self.prime),
             prime: self.prime.clone(),
         }
     }
@@ -328,7 +328,7 @@ impl Div for &FieldElement {
             num: (self.num.clone().into_modulo(&self.ring)
                 / rhs.num.clone().into_modulo(&self.ring))
             .residue(),
-            ring: ModuloRing::new(&self.prime()),
+            ring: ModuloRing::new(&self.prime),
             prime: self.prime.clone(),
         }
     }

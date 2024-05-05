@@ -9,5 +9,5 @@ pub enum ECCErrors {
     #[error("(`{0:?}`, {1:?}`) not on the curve")]
     InvalidPoint(Option<FieldElement>, Option<FieldElement>),
     #[error("`{0}` not in same curve as `{1}`")]
-    NotSameCurve(Point, Point),
+    NotSameCurve(Box<Point>, Box<Point>),
 }

@@ -4,11 +4,11 @@ use {
     ibig::{IBig, UBig},
     std::{
         fmt::{self, Display, Formatter},
-        ops::Add,
+        ops::{Add, Mul},
     },
 };
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 /// Point on a curve of equation y^2 = x^3 + ax + b
 ///
 /// Allowing for Optional values for x and y to handle infinity point. One co-ordinate cannot be None,
@@ -88,7 +88,7 @@ impl Add for Point {
 
     fn add(self, rhs: Self) -> Self::Output {
         if self.a != rhs.a || self.b != rhs.b {
-            panic!("{}", ECCErrors::NotSameCurve(self, rhs))
+            panic!("{}", ECCErrors::NotSameCurve(Box::new(self), Box::new(rhs)))
         }
 
         // self is infinity point
@@ -134,6 +134,288 @@ impl Add for Point {
             y: Some(y3),
             a: self.a,
             b: self.b,
+        }
+    }
+}
+
+impl Add for &Point {
+    type Output = Point;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        if self.a != rhs.a || self.b != rhs.b {
+            panic!(
+                "{}",
+                ECCErrors::NotSameCurve(Box::new(self.clone()), Box::new(rhs.clone()))
+            )
+        }
+
+        // self is infinity point
+        if self.x.is_none() {
+            return rhs.clone();
+        }
+
+        // rhs is infinity point
+        if rhs.x.is_none() {
+            return self.clone();
+        }
+
+        let x1 = self.x.clone().unwrap();
+        let x2 = rhs.x.clone().unwrap();
+
+        // additive inverse
+        if x1 == x2 {
+            return Self::Output::inf(self.a.clone(), self.b.clone());
+        }
+
+        let y1 = self.y.clone().unwrap();
+        let y2 = rhs.y.clone().unwrap();
+        let prime = x1.prime();
+
+        let two = FieldElement::new(UBig::from(2_u8), prime.clone()).unwrap();
+        let three = FieldElement::new(UBig::from(3_u8), prime).unwrap();
+
+        // equal points
+        let slope = if self == rhs {
+            if y1 == y1.zero() {
+                return Self::Output::inf(self.a.clone(), self.b.clone());
+            }
+            ((three * x1.pow(IBig::from(2))) + &self.a) / (two * &y1)
+        } else {
+            (y2 - &y1) / (&x2 - &x1)
+        };
+
+        let x3 = slope.pow(IBig::from(2)) - &x1 - x2;
+        let y3 = (slope * (x1 - &x3)) - y1;
+
+        Self::Output {
+            x: Some(x3),
+            y: Some(y3),
+            a: self.a.clone(),
+            b: self.b.clone(),
+        }
+    }
+}
+
+impl Add<&Point> for Point {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self::Output {
+        if self.a != rhs.a || self.b != rhs.b {
+            panic!(
+                "{}",
+                ECCErrors::NotSameCurve(Box::new(self), Box::new(rhs.clone()))
+            )
+        }
+
+        // self is infinity point
+        if self.x.is_none() {
+            return rhs.clone();
+        }
+
+        // rhs is infinity point
+        if rhs.x.is_none() {
+            return self;
+        }
+
+        let x1 = self.x.clone().unwrap();
+        let x2 = rhs.x.clone().unwrap();
+
+        // additive inverse
+        if x1 == x2 {
+            return Self::Output::inf(self.a, self.b);
+        }
+
+        let y1 = self.y.clone().unwrap();
+        let y2 = rhs.y.clone().unwrap();
+        let prime = x1.prime();
+
+        let two = FieldElement::new(UBig::from(2_u8), prime.clone()).unwrap();
+        let three = FieldElement::new(UBig::from(3_u8), prime).unwrap();
+
+        // equal points
+        let slope = if self == *rhs {
+            if y1 == y1.zero() {
+                return Self::Output::inf(self.a, self.b);
+            }
+            ((three * x1.pow(IBig::from(2))) + &self.a) / (two * &y1)
+        } else {
+            (y2 - &y1) / (&x2 - &x1)
+        };
+
+        let x3 = slope.pow(IBig::from(2)) - &x1 - x2;
+        let y3 = (slope * (x1 - &x3)) - y1;
+
+        Self::Output {
+            x: Some(x3),
+            y: Some(y3),
+            a: self.a,
+            b: self.b,
+        }
+    }
+}
+
+impl Add<Point> for &Point {
+    type Output = Point;
+
+    fn add(self, rhs: Self::Output) -> Self::Output {
+        if self.a != rhs.a || self.b != rhs.b {
+            panic!(
+                "{}",
+                ECCErrors::NotSameCurve(Box::new(self.clone()), Box::new(rhs))
+            )
+        }
+
+        // self is infinity point
+        if self.x.is_none() {
+            return rhs;
+        }
+
+        // rhs is infinity point
+        if rhs.x.is_none() {
+            return self.clone();
+        }
+
+        let x1 = self.x.clone().unwrap();
+        let x2 = rhs.x.clone().unwrap();
+
+        // additive inverse
+        if x1 == x2 {
+            return Self::Output::inf(self.a.clone(), self.b.clone());
+        }
+
+        let y1 = self.y.clone().unwrap();
+        let y2 = rhs.y.clone().unwrap();
+        let prime = x1.prime();
+
+        let two = FieldElement::new(UBig::from(2_u8), prime.clone()).unwrap();
+        let three = FieldElement::new(UBig::from(3_u8), prime).unwrap();
+
+        // equal points
+        let slope = if *self == rhs {
+            if y1 == y1.zero() {
+                return Self::Output::inf(self.a.clone(), self.b.clone());
+            }
+            ((three * x1.pow(IBig::from(2))) + &self.a) / (two * &y1)
+        } else {
+            (y2 - &y1) / (&x2 - &x1)
+        };
+
+        let x3 = slope.pow(IBig::from(2)) - &x1 - x2;
+        let y3 = (slope * (x1 - &x3)) - y1;
+
+        Self::Output {
+            x: Some(x3),
+            y: Some(y3),
+            a: self.a.clone(),
+            b: self.b.clone(),
+        }
+    }
+}
+
+impl Mul<Point> for UBig {
+    type Output = Point;
+
+    fn mul(self, rhs: Self::Output) -> Self::Output {
+        let mut coefficient = self;
+        let mut current = rhs.clone();
+        let mut result = Point::inf(rhs.a, rhs.b);
+
+        let zero = UBig::from(0_u8);
+        let one = UBig::from(1_u8);
+
+        loop {
+            if coefficient == zero {
+                // return infinity if coefficient is 0 in first iteration
+                break result;
+            };
+
+            if (&coefficient & 1) == one {
+                result = &result + &current; // update during odd iterations
+            }
+
+            current = &current + &current; // adjust for even iteration
+            coefficient >>= 1; // cut down two iterations
+        }
+    }
+}
+
+impl Mul<&Point> for &UBig {
+    type Output = Point;
+
+    fn mul(self, rhs: &Self::Output) -> Self::Output {
+        let mut coefficient = self.clone();
+        let mut current = rhs.clone();
+        let mut result = Point::inf(rhs.a.clone(), rhs.b.clone());
+
+        let zero = UBig::from(0_u8);
+        let one = UBig::from(1_u8);
+
+        loop {
+            if coefficient == zero {
+                // return infinity if coefficient is 0 in first iteration
+                break result;
+            };
+
+            if (&coefficient & 1) == one {
+                result = &result + &current; // update during odd iterations
+            }
+
+            current = &current + &current; // adjust for even iteration
+            coefficient >>= 1; // cut down two iterations
+        }
+    }
+}
+
+impl Mul<&Point> for UBig {
+    type Output = Point;
+
+    fn mul(self, rhs: &Self::Output) -> Self::Output {
+        let mut coefficient = self;
+        let mut current = rhs.clone();
+        let mut result = Point::inf(rhs.a.clone(), rhs.b.clone());
+
+        let zero = UBig::from(0_u8);
+        let one = UBig::from(1_u8);
+
+        loop {
+            if coefficient == zero {
+                // return infinity if coefficient is 0 in first iteration
+                break result;
+            };
+
+            if (&coefficient & 1) == one {
+                result = &result + &current; // update during odd iterations
+            }
+
+            current = &current + &current; // adjust for even iteration
+            coefficient >>= 1; // cut down two iterations
+        }
+    }
+}
+
+impl Mul<Point> for &UBig {
+    type Output = Point;
+
+    fn mul(self, rhs: Self::Output) -> Self::Output {
+        let mut coefficient = self.clone();
+        let mut current = rhs.clone();
+        let mut result = Point::inf(rhs.a, rhs.b);
+
+        let zero = UBig::from(0_u8);
+        let one = UBig::from(1_u8);
+
+        loop {
+            if coefficient == zero {
+                // return infinity if coefficient is 0 in first iteration
+                break result;
+            };
+
+            if (&coefficient & 1) == one {
+                result = &result + &current; // update during odd iterations
+            }
+
+            current = &current + &current; // adjust for even iteration
+            coefficient >>= 1; // cut down two iterations
         }
     }
 }

@@ -1,2 +1,1 @@
-pub mod ecc;
-pub mod fields;
+pub mod secp256k1;

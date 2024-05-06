@@ -3,7 +3,6 @@ use {
         constants::{B, SECP256K1_ORDER_RING},
         element::Element,
         errors::SECP256K1CurveError,
-        signature::Signature,
     },
     anyhow::{bail, Result},
     ibig::{modular::IntoModulo, IBig, UBig},
@@ -21,21 +20,6 @@ use {
 pub struct Point {
     x: Option<Element>,
     y: Option<Element>,
-}
-
-impl Display for Point {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if self.x.is_none() {
-            return write!(f, "INF");
-        }
-
-        write!(
-            f,
-            "({}, {})",
-            self.x.as_ref().unwrap(),
-            self.y.as_ref().unwrap(),
-        )
-    }
 }
 
 impl Point {
@@ -66,7 +50,7 @@ impl Point {
         }
     }
 
-    /// Infnity point of the SECP256K1 Curve
+    /// Infinity point of the SECP256K1 Curve
     pub fn inf() -> Self {
         Self { x: None, y: None }
     }
@@ -75,8 +59,21 @@ impl Point {
     pub fn is_inf(&self) -> bool {
         self.x.is_none()
     }
+}
 
-    pub fn verify(&self, z: UBig, signature: Signature) {}
+impl Display for Point {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if self.x.is_none() {
+            return write!(f, "INF");
+        }
+
+        write!(
+            f,
+            "(x: {}, y: {})",
+            self.x.as_ref().unwrap(),
+            self.y.as_ref().unwrap(),
+        )
+    }
 }
 
 impl Add for Point {
@@ -98,11 +95,8 @@ impl Add for Point {
                     return Self::inf();
                 }
 
-                // initialise slope as if points are different
-                let mut slope = (y2 - y1) / (x2 - x1);
-
                 // points are same
-                if x1 == x2 {
+                let slope = if x1 == x2 {
                     // line will be a tangent if y co-ordinates are 0
                     if y1.is_zero() {
                         return Self::inf();
@@ -111,9 +105,12 @@ impl Add for Point {
                     // y co-ordinates are not zero
                     let two = Element::new(UBig::from(2_u8)).unwrap();
                     let three = Element::new(UBig::from(3_u8)).unwrap();
-                    // overwrite slope with new calculation
-                    slope = (three * x1.pow(IBig::from(2))) / (two * y1);
-                }
+                    // slope for when points are the same
+                    (three * x1.pow(IBig::from(2))) / (&two * y1)
+                } else {
+                    // slope for when points are different
+                    (y2 - y1) / (x2 - x1)
+                };
 
                 let x3 = slope.pow(IBig::from(2)) - x1 - x2;
                 let y3 = slope * (x1 - &x3) - y1;
@@ -204,22 +201,37 @@ impl Mul<Point> for &UBig {
 
 #[cfg(test)]
 mod test {
-    use crate::secp256k1::constants::{SECP256K1_GENERATOR_POINT, SECP256K1_ORDER};
-
-    use super::*;
+    use {
+        super::*,
+        crate::secp256k1::constants::{SECP256K1_GENERATOR_POINT, SECP256K1_ORDER},
+        ibig::ubig,
+    };
 
     #[test]
-    fn generator_on_curve() -> Result<()> {
-        let _ = SECP256K1_GENERATOR_POINT.with(|g| g.clone());
+    fn g_on_curve() -> Result<()> {
+        // call global variable and initialise it
+        // if it does then point coordinates are valid
+        SECP256K1_GENERATOR_POINT.with(|g| g.clone());
         Ok(())
     }
 
     #[test]
-    fn order_n_test() -> Result<()> {
+    fn order_of_g_is_n() -> Result<()> {
         let g = SECP256K1_GENERATOR_POINT.with(|g| g.clone());
         let n = SECP256K1_ORDER.with(|n| n.clone());
-        let inf = n * g;
-        assert!(inf.is_inf());
+        // order * generator will always be infinity
+        let p = n * g;
+
+        assert!(p.is_inf());
+        Ok(())
+    }
+
+    #[test]
+    fn scalar_mult_and_add() -> Result<()> {
+        let g = SECP256K1_GENERATOR_POINT.with(|g| g.clone());
+        let scalar = ubig!(3);
+
+        assert_eq!(scalar * &g, &g + &g + g);
         Ok(())
     }
 }

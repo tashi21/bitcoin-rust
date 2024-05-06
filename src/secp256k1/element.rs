@@ -37,7 +37,7 @@ impl Element {
 
     /// Check if an element is 0
     pub fn is_zero(&self) -> bool {
-        self.num == UBig::from(0_u8)
+        self.num.bit_len() == 0
     }
 
     /// Return the Field Element number
@@ -48,7 +48,7 @@ impl Element {
 
 impl Display for Element {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.num)
+        write!(f, "{:X}", self.num)
     }
 }
 

@@ -23,6 +23,6 @@ impl Signature {
 
 impl Display for Signature {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "(r: {:X}, s: {:X})", self.r, self.s)
+        write!(f, "({:X}, {:X})", self.r, self.s)
     }
 }

@@ -78,6 +78,14 @@ impl Point {
 
         r.x.unwrap().num() == signature.r()
     }
+
+    pub fn x(&self) -> UBig {
+        self.x.clone().unwrap().num()
+    }
+
+    pub fn y(&self) -> UBig {
+        self.y.clone().unwrap().num()
+    }
 }
 
 impl Display for Point {

@@ -15,7 +15,7 @@ thread_local! {
     ///
     /// Hex representation: FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFE BAAEDCE6
     /// AF48A03B BFD25E8C D0364141
-    pub static SECP256K1_ORDER: UBig = UBig::from_str_radix(
+    pub static N: UBig = UBig::from_str_radix(
         "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
         16,
     )
@@ -27,7 +27,7 @@ thread_local! {
     ///
     /// Hex representation: FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
     /// FFFFFFFF FFFFFFFE FFFFFC2F
-    pub static SECP256K1_PRIME: UBig = UBig::from_str_radix(
+    pub static P: UBig = UBig::from_str_radix(
         "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F",
         16,
     )
@@ -42,7 +42,7 @@ thread_local! {
     ///
     /// Hex representation of y: 483ADA77 26A3C465 5DA4FBFC 0E1108A8
     /// FD17B448 A6855419 9C47D08F FB10D4B8
-    pub static SECP256K1_GENERATOR_POINT: Point = Point::new(
+    pub static G: Point = Point::new(
         Some(
             Element::new(
                 UBig::from_str_radix(
@@ -62,7 +62,7 @@ thread_local! {
 
 thread_local! {
     /// Order ring of the SECP256K1 Field
-    pub static SECP256K1_ORDER_RING: ModuloRing = ModuloRing::new(
+    pub static N_RING: ModuloRing = ModuloRing::new(
         &UBig::from_str_radix(
             "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
             16,
@@ -73,7 +73,7 @@ thread_local! {
 
 thread_local! {
     /// Prime ring of the SECP256K1 Field
-    pub static SECP256K1_RING: ModuloRing = ModuloRing::new(
+    pub static P_RING: ModuloRing = ModuloRing::new(
         &UBig::from_str_radix(
             "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F",
             16,

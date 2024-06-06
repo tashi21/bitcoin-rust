@@ -8,18 +8,22 @@ pub struct Signature {
 }
 
 impl Signature {
+    /// Create a new signature from the given r and s values.
     pub fn new(r: UBig, s: UBig) -> Self {
         Self { r, s }
     }
 
+    /// Return the r value of the signature.
     pub fn r(&self) -> UBig {
         self.r.clone()
     }
 
+    /// Return the s value of the signature.
     pub fn s(&self) -> UBig {
         self.s.clone()
     }
 
+    /// Serialises the signature using DER encoding.
     pub fn serialise(&self) -> String {
         // encode r value
         let mut r_bytes = self.r.to_be_bytes();

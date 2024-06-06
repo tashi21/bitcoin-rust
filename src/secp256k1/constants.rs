@@ -4,17 +4,17 @@ use {
 };
 
 thread_local! {
-    /// `a` coefficient of the SECP256K1 Field
-    pub static A: Element = Element::new(UBig::from(0_u8)).unwrap()
-}
-
-thread_local! {
     /// `b` coefficient of the SECP256K1 Field
+    ///
+    /// Hex representation: 00000007
     pub static B: Element = Element::new(UBig::from(7_u8)).unwrap()
 }
 
 thread_local! {
     /// Order of the SECP256K1 Field
+    ///
+    /// Hex representation: FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFE BAAEDCE6
+    /// AF48A03B BFD25E8C D0364141
     pub static SECP256K1_ORDER: UBig = UBig::from_str_radix(
         "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
         16,
@@ -24,6 +24,9 @@ thread_local! {
 
 thread_local! {
     /// Prime of the SECP256K1 Field
+    ///
+    /// Hex representation: FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
+    /// FFFFFFFF FFFFFFFE FFFFFC2F
     pub static SECP256K1_PRIME: UBig = UBig::from_str_radix(
         "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F",
         16,
@@ -33,6 +36,12 @@ thread_local! {
 
 thread_local! {
     /// Generator Point of the SECP256K1 Curve
+    ///
+    /// Hex representation of x: 79BE667E F9DCBBAC 55A06295 CE870B07
+    /// 029BFCDB 2DCE28D9 59F2815B 16F81798
+    ///
+    /// Hex representation of y: 483ADA77 26A3C465 5DA4FBFC 0E1108A8
+    /// FD17B448 A6855419 9C47D08F FB10D4B8
     pub static SECP256K1_GENERATOR_POINT: Point = Point::new(
         Some(
             Element::new(

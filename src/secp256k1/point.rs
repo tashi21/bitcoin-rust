@@ -1,6 +1,6 @@
 use {
     super::{
-        constants::{B, SECP256K1_GENERATOR_POINT, SECP256K1_ORDER_RING},
+        constants::{B, SECP256K1_GENERATOR_POINT, SECP256K1_ORDER_RING, SECP256K1_PRIME},
         element::Element,
         errors::SECP256K1CurveError,
         signature::Signature,
@@ -72,6 +72,7 @@ impl Point {
             .with(|o| (signature.r().into_modulo(o) / signature.s().into_modulo(o)).residue());
 
         let ug = SECP256K1_GENERATOR_POINT.with(|g| u * g);
+        // self = P = eG => vP = veG
         let vp = v * self;
 
         let r = ug + vp;
@@ -85,6 +86,68 @@ impl Point {
 
     pub fn y(&self) -> UBig {
         self.y.clone().unwrap().num()
+    }
+
+    /// Return the SEC serialisation of the point
+    pub fn serialise(&self, compressed: bool) -> String {
+        if compressed {
+            let mut prefix = b"\x03"; // assume y is odd
+            if self.y().trailing_zeros().is_none() || self.y().trailing_zeros().unwrap() > 0 {
+                // y is even
+                prefix = b"\x02"; // update prefix
+            }
+            let enc = [prefix, self.x().to_be_bytes().as_slice()].concat();
+            format!("{:X?}", enc)
+        } else {
+            let enc = [
+                b"\x04",
+                self.x().to_be_bytes().as_slice(),
+                &self.y().to_be_bytes().as_slice(),
+            ]
+            .concat();
+            format!("{:X?}", enc)
+        }
+    }
+
+    /// Parse the hex encoded SEC serialisation of the point
+    pub fn parse(self, sec_hex: &str) -> Result<Self> {
+        // get prefix of point
+        let prefix = sec_hex.as_bytes()[0];
+
+        // uncompressed SEC serialisation
+        if prefix == b'\x04' {
+            let x = UBig::from_be_bytes(&sec_hex.as_bytes()[1..33]);
+            let y = UBig::from_be_bytes(&sec_hex.as_bytes()[33..65]);
+            return Ok(Self {
+                x: Some(Element::new(x)?),
+                y: Some(Element::new(y)?),
+            });
+        }
+
+        // compressed SEC serialisation
+        let x = Element::new(UBig::from_be_bytes(&sec_hex.as_bytes()[1..33]))?;
+        let beta = B.with(|b| (x.pow(3.into()) + b).sqrt().unwrap());
+
+        let odd_y;
+        let even_y;
+
+        // if beta is even
+        if beta.num() % 2 == 0 {
+            odd_y = Element::new(SECP256K1_PRIME.with(|p| p - beta.num()))?;
+            even_y = beta;
+        } else {
+            // beta is odd
+            even_y = Element::new(SECP256K1_PRIME.with(|p| p - beta.num()))?;
+            odd_y = beta;
+        }
+
+        // y is even
+        if prefix == b'\x02' {
+            Ok(Self::new(Some(x), Some(even_y))?)
+        } else {
+            // y is odd
+            Ok(Self::new(Some(x), Some(odd_y))?)
+        }
     }
 }
 

@@ -13,28 +13,27 @@ use {
 
 pub struct PrivateKey {
     point: Point,
-    secret: UBig,
+    e: UBig,
 }
 
 impl PrivateKey {
     /// Create a new Private Key with the given secret
-    pub fn new(secret: UBig) -> Self {
+    pub fn new(e: UBig) -> Self {
         Self {
-            point: SECP256K1_GENERATOR_POINT.with(|g| secret.clone() * g),
-            secret,
+            point: SECP256K1_GENERATOR_POINT.with(|g| e.clone() * g),
+            e,
         }
     }
 
     /// Generate a Signature from a message hash using the Private Key
     pub fn sign(&self, z: UBig) -> Result<Signature> {
         let k = self.deterministic_k(z.clone())?;
-        let r = SECP256K1_GENERATOR_POINT.with(|g| (k.clone() * g).x());
+        let r = SECP256K1_GENERATOR_POINT.with(|g| (k.clone() * g).x()); // x co coridinate of R point
         let s = SECP256K1_ORDER_RING.with(|ring| {
-            ((z + r.clone() * self.secret.clone()).into_modulo(ring) / k.into_modulo(ring))
-                .residue()
-        });
+            ((z + r.clone() * self.e.clone()).into_modulo(ring) / k.into_modulo(ring)).residue()
+        }); // s = (z + r * secret) / k
 
-        let s = SECP256K1_ORDER.with(|o| if s > o / 2 { o - s } else { s });
+        let s = SECP256K1_ORDER.with(|o| if s > o / 2 { o - s } else { s }); // correct s if greater than half the order
 
         Ok(Signature::new(r, s))
     }
@@ -50,7 +49,7 @@ impl PrivateKey {
                 z.to_be_bytes()
             }
         });
-        let secret_bytes = self.secret.to_be_bytes();
+        let secret_bytes = self.e.to_be_bytes();
 
         type Sha256Hmac = Hmac<Sha256>;
 

@@ -35,6 +35,13 @@ impl Element {
         }
     }
 
+    /// Calculate the square root of self
+    pub fn sqrt(&self) -> Result<Self> {
+        // P % 4 == 3
+        // so (P + 1) / 4 is an integer
+        Ok(self.pow(SECP256K1_PRIME.with(|p| IBig::from((p + 1) / 4))))
+    }
+
     /// Check if an element is 0
     pub fn is_zero(&self) -> bool {
         self.num.bit_len() == 0

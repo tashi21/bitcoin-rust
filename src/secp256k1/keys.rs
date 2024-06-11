@@ -1,6 +1,6 @@
 use {
     super::{
-        constants::{SECP256K1_GENERATOR_POINT, SECP256K1_ORDER, SECP256K1_ORDER_RING},
+        constants::{G, N, N_RING},
         point::Point,
         signature::Signature,
     },
@@ -20,7 +20,7 @@ impl PrivateKey {
     /// Create a new Private Key with the given secret
     pub fn new(e: UBig) -> Self {
         Self {
-            point: SECP256K1_GENERATOR_POINT.with(|g| e.clone() * g),
+            point: G.with(|g| e.clone() * g),
             e,
         }
     }
@@ -28,12 +28,12 @@ impl PrivateKey {
     /// Generate a Signature from a message hash using the Private Key
     pub fn sign(&self, z: UBig) -> Result<Signature> {
         let k = self.deterministic_k(z.clone())?;
-        let r = SECP256K1_GENERATOR_POINT.with(|g| (k.clone() * g).x()); // x co coridinate of R point
-        let s = SECP256K1_ORDER_RING.with(|ring| {
+        let r = G.with(|g| (k.clone() * g).x()); // x co coridinate of R point
+        let s = N_RING.with(|ring| {
             ((z + r.clone() * self.e.clone()).into_modulo(ring) / k.into_modulo(ring)).residue()
         }); // s = (z + r * secret) / k
 
-        let s = SECP256K1_ORDER.with(|o| if s > o / 2 { o - s } else { s }); // correct s if greater than half the order
+        let s = N.with(|o| if s > o / 2 { o - s } else { s }); // correct s if greater than half the order
 
         Ok(Signature::new(r, s))
     }
@@ -42,7 +42,7 @@ impl PrivateKey {
     fn deterministic_k(&self, z: UBig) -> Result<UBig> {
         let mut k = b"\x00".repeat(32); // initial k value
         let mut v = b"\x01".repeat(32); // initial v value
-        let z_bytes = SECP256K1_ORDER.with(|o| {
+        let z_bytes = N.with(|o| {
             if z > *o {
                 (z - o).to_be_bytes()
             } else {
@@ -93,7 +93,7 @@ impl PrivateKey {
             v = mac.finalize().into_bytes().to_vec(); // update v
 
             let candidate = UBig::from_be_bytes(v.as_slice());
-            if candidate >= UBig::from(1_u8) && SECP256K1_ORDER.with(|o| candidate < *o) {
+            if candidate >= UBig::from(1_u8) && N.with(|o| candidate < *o) {
                 return Ok(candidate);
             }
 
@@ -115,4 +115,14 @@ impl Display for PrivateKey {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use super::*;
+
+    #[test]
+    fn sign() {
+        let e = UBig::from(1);
+        let private_key = PrivateKey::new(e);
+        assert_eq!(private_key.e, e);
+        assert_eq!(private_key.point, G.with(|g| e.clone() * g));
+    }
+}

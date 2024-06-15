@@ -7,7 +7,7 @@ thread_local! {
     /// `b` coefficient of the SECP256K1 Field
     ///
     /// Hex representation: 00000007
-    pub static B: Element = Element::new(UBig::from(7_u8)).unwrap()
+    pub static B: Element = Element::new("7",10).unwrap()
 }
 
 thread_local! {
@@ -45,18 +45,17 @@ thread_local! {
     pub static G: Point = Point::new(
         Some(
             Element::new(
-                UBig::from_str_radix(
-                    "79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
-                    16)
-                .unwrap())
-            .unwrap()),
+                "79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+                16)
+            .unwrap()
+        ),
         Some(
             Element::new(
-                UBig::from_str_radix(
-                    "483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
-                    16)
-                .unwrap())
-            .unwrap()))
+                "483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
+                16)
+            .unwrap()
+        )
+    )
     .unwrap()
 }
 

@@ -20,7 +20,13 @@ pub struct Element {
 
 impl Element {
     /// Create a new Field Element
-    pub fn new(num: UBig) -> Result<Self> {
+    ///
+    /// `num` is the number in the field
+    ///
+    /// `radix` is the radix of the number, between 2 and 36 (inclusive)
+    pub fn new(num: &str, radix: u32) -> Result<Self> {
+        let num = UBig::from_str_radix(num, radix)?;
+
         // check if given number is in field range
         if P.with(|p| num >= *p) {
             bail!(SECP256K1FieldError::NotInRange(num));
@@ -30,17 +36,20 @@ impl Element {
     }
 
     /// Returns the value of the field element raised to the power of `exp`
-    pub fn pow(&self, exp: IBig) -> Self {
-        Self {
+    pub fn pow(&self, exp: &str, radix: u32) -> Result<Self> {
+        let exp = IBig::from_str_radix(exp, radix)?;
+
+        Ok(Self {
             num: P_RING.with(|r| (&self.num).into_modulo(r).pow_signed(&exp).residue()),
-        }
+        })
     }
 
     /// Returns the square root of the field element
     pub fn sqrt(&self) -> Self {
         // P % 4 == 3
         // so (P + 1) / 4 is an integer
-        self.pow(P.with(|p| IBig::from((p + 1) / 4)))
+        self.pow(&P.with(|p| IBig::from((p + 1) / 4)).to_string(), 10)
+            .unwrap()
     }
 
     /// Check if an element is 0
@@ -243,11 +252,11 @@ impl Div<Element> for &Element {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ibig::{ibig, ubig};
+    use ibig::{ubig, UBig};
 
     #[test]
     fn create_valid() -> Result<()> {
-        let e = Element::new(ubig!(1));
+        let e = Element::new("1", 10);
 
         assert!(e.is_ok());
         Ok(())
@@ -255,7 +264,7 @@ mod test {
 
     #[test]
     fn create_invalid() -> Result<()> {
-        let e = Element::new(P.with(|p| p + 1));
+        let e = Element::new(&P.with(|p| -> UBig { p + 1 }).to_string(), 10);
 
         assert!(e.is_err());
         Ok(())
@@ -263,8 +272,8 @@ mod test {
 
     #[test]
     fn equal() -> Result<()> {
-        let e1 = Element::new(ubig!(2))?;
-        let e2 = Element::new(ubig!(2))?;
+        let e1 = Element::new("2", 10)?;
+        let e2 = Element::new("2", 10)?;
 
         assert!(e1 == e2);
         Ok(())
@@ -272,8 +281,8 @@ mod test {
 
     #[test]
     fn unequal() -> Result<()> {
-        let e1 = Element::new(ubig!(2))?;
-        let e2 = Element::new(ubig!(3))?;
+        let e1 = Element::new("2", 10)?;
+        let e2 = Element::new("2", 10)?;
 
         assert!(e1 != e2);
         Ok(())
@@ -281,37 +290,31 @@ mod test {
 
     #[test]
     fn neg_exp() -> Result<()> {
-        let e1 = Element::new(ubig!(7))?;
+        let e1 = Element::new("7", 10)?;
         let e2 = Element::new(
-            UBig::from_str_radix(
-                "91823464351457740977292442922341431300552291046805345244117967493152195424759",
-                10,
-            )
-            .unwrap(),
+            "91823464351457740977292442922341431300552291046805345244117967493152195424759",
+            10,
         )?;
 
-        assert_eq!(e1.pow(ibig!(-3)), e2);
+        assert_eq!(e1.pow("-3", 10)?, e2);
         Ok(())
     }
 
     #[test]
     fn pos_exp() -> Result<()> {
-        let e1 = Element::new(ubig!(7))?;
-        let e2 = Element::new(ubig!(343))?;
+        let e1 = Element::new("7", 10)?;
+        let e2 = Element::new("343", 10)?;
 
-        assert_eq!(e1.pow(ibig!(3)), e2);
+        assert_eq!(e1.pow("3", 10)?, e2);
         Ok(())
     }
 
     #[test]
     fn sqrt() -> Result<()> {
-        let e1 = Element::new(ubig!(452345243))?;
+        let e1 = Element::new("452345243", 10)?;
         let e2 = Element::new(
-            UBig::from_str_radix(
-                "60918528521079593676672830288299404598099605221950081497966121269789262591401",
-                10,
-            )
-            .unwrap(),
+            "60918528521079593676672830288299404598099605221950081497966121269789262591401",
+            10,
         )?;
 
         assert_eq!(e1.sqrt(), e2);
@@ -320,7 +323,7 @@ mod test {
 
     #[test]
     fn is_zero() -> Result<()> {
-        let e = Element::new(ubig!(0))?;
+        let e = Element::new("0", 10)?;
 
         assert!(e.is_zero());
         Ok(())
@@ -328,7 +331,7 @@ mod test {
 
     #[test]
     fn is_not_zero() -> Result<()> {
-        let e = Element::new(ubig!(1))?;
+        let e = Element::new("1", 10)?;
 
         assert!(!e.is_zero());
         Ok(())
@@ -336,7 +339,7 @@ mod test {
 
     #[test]
     fn get_num() -> Result<()> {
-        let e = Element::new(ubig!(3))?;
+        let e = Element::new("3", 10)?;
 
         assert_eq!(e.num(), ubig!(3));
         Ok(())
@@ -344,9 +347,9 @@ mod test {
 
     #[test]
     fn add_elems() -> Result<()> {
-        let e1 = Element::new(ubig!(7))?;
-        let e2 = Element::new(ubig!(12))?;
-        let e3 = Element::new(ubig!(19))?;
+        let e1 = Element::new("7", 10)?;
+        let e2 = Element::new("12", 10)?;
+        let e3 = Element::new("19", 10)?;
 
         assert_eq!(e1 + e2, e3);
         Ok(())
@@ -354,9 +357,9 @@ mod test {
 
     #[test]
     fn add_ref_elems() -> Result<()> {
-        let e1 = Element::new(ubig!(7))?;
-        let e2 = Element::new(ubig!(15))?;
-        let e3 = Element::new(ubig!(22))?;
+        let e1 = Element::new("7", 10)?;
+        let e2 = Element::new("15", 10)?;
+        let e3 = Element::new("22", 10)?;
 
         assert_eq!(&e1 + &e2, e3);
         Ok(())
@@ -364,9 +367,9 @@ mod test {
 
     #[test]
     fn add_ref_reg_elems() -> Result<()> {
-        let e1 = Element::new(ubig!(8))?;
-        let e2 = Element::new(ubig!(12))?;
-        let e3 = Element::new(ubig!(20))?;
+        let e1 = Element::new("8", 10)?;
+        let e2 = Element::new("12", 10)?;
+        let e3 = Element::new("20", 10)?;
 
         assert_eq!(e1 + &e2, e3);
         Ok(())
@@ -374,14 +377,11 @@ mod test {
 
     #[test]
     fn sub_elems() -> Result<()> {
-        let e1 = Element::new(ubig!(7))?;
-        let e2 = Element::new(ubig!(12))?;
+        let e1 = Element::new("7", 10)?;
+        let e2 = Element::new("12", 10)?;
         let e3 = Element::new(
-            UBig::from_str_radix(
-                "115792089237316195423570985008687907853269984665640564039457584007908834671658",
-                10,
-            )
-            .unwrap(),
+            "115792089237316195423570985008687907853269984665640564039457584007908834671658",
+            10,
         )?;
 
         assert_eq!(e1 - e2, e3);
@@ -390,14 +390,11 @@ mod test {
 
     #[test]
     fn sub_ref_elems() -> Result<()> {
-        let e1 = Element::new(ubig!(7))?;
-        let e2 = Element::new(ubig!(12))?;
+        let e1 = Element::new("7", 10)?;
+        let e2 = Element::new("12", 10)?;
         let e3 = Element::new(
-            UBig::from_str_radix(
-                "115792089237316195423570985008687907853269984665640564039457584007908834671658",
-                10,
-            )
-            .unwrap(),
+            "115792089237316195423570985008687907853269984665640564039457584007908834671658",
+            10,
         )?;
 
         assert_eq!(&e1 - &e2, e3);
@@ -406,14 +403,11 @@ mod test {
 
     #[test]
     fn sub_ref_reg_elems() -> Result<()> {
-        let e1 = Element::new(ubig!(7))?;
-        let e2 = Element::new(ubig!(12))?;
+        let e1 = Element::new("7", 10)?;
+        let e2 = Element::new("12", 10)?;
         let e3 = Element::new(
-            UBig::from_str_radix(
-                "115792089237316195423570985008687907853269984665640564039457584007908834671658",
-                10,
-            )
-            .unwrap(),
+            "115792089237316195423570985008687907853269984665640564039457584007908834671658",
+            10,
         )?;
 
         assert_eq!(e1 - &e2, e3);
@@ -422,9 +416,9 @@ mod test {
 
     #[test]
     fn mul_elems() -> Result<()> {
-        let e1 = Element::new(ubig!(3))?;
-        let e2 = Element::new(ubig!(12))?;
-        let e3 = Element::new(ubig!(36))?;
+        let e1 = Element::new("3", 10)?;
+        let e2 = Element::new("12", 10)?;
+        let e3 = Element::new("36", 10)?;
 
         assert_eq!(e1 * e2, e3);
         Ok(())
@@ -432,9 +426,9 @@ mod test {
 
     #[test]
     fn mul_ref_elems() -> Result<()> {
-        let e1 = Element::new(ubig!(3))?;
-        let e2 = Element::new(ubig!(13))?;
-        let e3 = Element::new(ubig!(39))?;
+        let e1 = Element::new("3", 10)?;
+        let e2 = Element::new("13", 10)?;
+        let e3 = Element::new("39", 10)?;
 
         assert_eq!(&e1 * &e2, e3);
         Ok(())
@@ -442,9 +436,9 @@ mod test {
 
     #[test]
     fn mul_ref_reg_elems() -> Result<()> {
-        let e1 = Element::new(ubig!(4))?;
-        let e2 = Element::new(ubig!(13))?;
-        let e3 = Element::new(ubig!(52))?;
+        let e1 = Element::new("4", 10)?;
+        let e2 = Element::new("13", 10)?;
+        let e3 = Element::new("52", 10)?;
 
         assert_eq!(&e1 * e2, e3);
         Ok(())
@@ -452,14 +446,11 @@ mod test {
 
     #[test]
     fn div_elems() -> Result<()> {
-        let e1 = Element::new(ubig!(2))?;
-        let e2 = Element::new(ubig!(7))?;
+        let e1 = Element::new("2", 10)?;
+        let e2 = Element::new("7", 10)?;
         let e3 = Element::new(
-            UBig::from_str_radix(
-                "82708635169511568159693560720491362752335703332600402885326845719934881908331",
-                10,
-            )
-            .unwrap(),
+            "82708635169511568159693560720491362752335703332600402885326845719934881908331",
+            10,
         )?;
 
         assert_eq!(e1 / e2, e3);
@@ -468,14 +459,11 @@ mod test {
 
     #[test]
     fn div_ref_elems() -> Result<()> {
-        let e1 = Element::new(ubig!(2))?;
-        let e2 = Element::new(ubig!(7))?;
+        let e1 = Element::new("2", 10)?;
+        let e2 = Element::new("7", 10)?;
         let e3 = Element::new(
-            UBig::from_str_radix(
-                "82708635169511568159693560720491362752335703332600402885326845719934881908331",
-                10,
-            )
-            .unwrap(),
+            "82708635169511568159693560720491362752335703332600402885326845719934881908331",
+            10,
         )?;
 
         assert_eq!(&e1 / &e2, e3);
@@ -484,14 +472,11 @@ mod test {
 
     #[test]
     fn div_ref_reg_elems() -> Result<()> {
-        let e1 = Element::new(ubig!(2))?;
-        let e2 = Element::new(ubig!(7))?;
+        let e1 = Element::new("2", 10)?;
+        let e2 = Element::new("7", 10)?;
         let e3 = Element::new(
-            UBig::from_str_radix(
-                "82708635169511568159693560720491362752335703332600402885326845719934881908331",
-                10,
-            )
-            .unwrap(),
+            "82708635169511568159693560720491362752335703332600402885326845719934881908331",
+            10,
         )?;
 
         assert_eq!(&e1 / e2, e3);

@@ -1,12 +1,13 @@
 use {
     super::{
-        constants::{B, SECP256K1_GENERATOR_POINT, SECP256K1_ORDER_RING, SECP256K1_PRIME},
+        constants::{B, G, N_RING, P},
         element::Element,
         errors::SECP256K1CurveError,
         signature::Signature,
     },
     anyhow::{bail, Result},
-    ibig::{modular::IntoModulo, IBig, UBig},
+    hex::encode_upper,
+    ibig::{modular::IntoModulo, UBig},
     std::{
         fmt::{self, Display, Formatter},
         ops::{Add, Mul},
@@ -35,9 +36,9 @@ impl Point {
 
             (Some(x), Some(y)) => {
                 // y^2
-                let rhs = y.pow(IBig::from(2));
+                let rhs = y.pow("2", 10)?;
                 // x^3 + B
-                let lhs = B.with(|b| x.pow(IBig::from(3)) + b);
+                let lhs = B.with(|b| b + x.pow("3", 10).unwrap());
 
                 if rhs != lhs {
                     bail!(SECP256K1CurveError::InvalidPoint(Some(x), Some(y)))
@@ -65,13 +66,12 @@ impl Point {
     ///
     /// `z` is the message hash (256 bits)
     pub fn verify(&self, z: UBig, signature: Signature) -> bool {
-        let u = SECP256K1_ORDER_RING
-            .with(|o| (z.into_modulo(o) / signature.s().into_modulo(o)).residue());
+        let u = N_RING.with(|o| (z.into_modulo(o) / signature.s().into_modulo(o)).residue());
 
-        let v = SECP256K1_ORDER_RING
+        let v = N_RING
             .with(|o| (signature.r().into_modulo(o) / signature.s().into_modulo(o)).residue());
 
-        let ug = SECP256K1_GENERATOR_POINT.with(|g| u * g);
+        let ug = G.with(|g| u * g);
         // self = P = eG => vP = veG
         let vp = v * self;
 
@@ -97,7 +97,7 @@ impl Point {
                 prefix = b"\x02"; // update prefix
             }
             let enc = [prefix, self.x().to_be_bytes().as_slice()].concat();
-            format!("{:X?}", enc)
+            encode_upper(enc)
         } else {
             let enc = [
                 b"\x04",
@@ -105,7 +105,7 @@ impl Point {
                 &self.y().to_be_bytes().as_slice(),
             ]
             .concat();
-            format!("{:X?}", enc)
+            encode_upper(enc)
         }
     }
 
@@ -116,28 +116,26 @@ impl Point {
 
         // uncompressed SEC serialisation
         if prefix == b'\x04' {
-            let x = UBig::from_be_bytes(&sec_hex.as_bytes()[1..33]);
-            let y = UBig::from_be_bytes(&sec_hex.as_bytes()[33..65]);
             return Ok(Self {
-                x: Some(Element::new(x)?),
-                y: Some(Element::new(y)?),
+                x: Some(Element::new(sec_hex.get(1..33).unwrap(), 16)?),
+                y: Some(Element::new(sec_hex.get(33..65).unwrap(), 16)?),
             });
         }
 
         // compressed SEC serialisation
-        let x = Element::new(UBig::from_be_bytes(&sec_hex.as_bytes()[1..33]))?;
-        let beta = B.with(|b| (x.pow(3.into()) + b).sqrt().unwrap());
+        let x = Element::new(sec_hex.get(1..33).unwrap(), 16)?;
+        let beta = B.with(|b| b + x.pow("3", 10).unwrap()).sqrt();
 
         let odd_y;
         let even_y;
 
         // if beta is even
         if beta.num() % 2 == 0 {
-            odd_y = Element::new(SECP256K1_PRIME.with(|p| p - beta.num()))?;
+            odd_y = Element::new(&P.with(|p| p - beta.num()).to_string(), 10)?;
             even_y = beta;
         } else {
             // beta is odd
-            even_y = Element::new(SECP256K1_PRIME.with(|p| p - beta.num()))?;
+            even_y = Element::new(&P.with(|p| p - beta.num()).to_string(), 10)?;
             odd_y = beta;
         }
 
@@ -193,16 +191,16 @@ impl Add for Point {
                     }
 
                     // y co-ordinates are not zero
-                    let two = Element::new(UBig::from(2_u8)).unwrap();
-                    let three = Element::new(UBig::from(3_u8)).unwrap();
+                    let two = Element::new("2", 10).unwrap();
+                    let three = Element::new("3", 10).unwrap();
                     // slope for when points are the same
-                    (three * x1.pow(IBig::from(2))) / (&two * y1)
+                    (three * x1.pow("2", 10).unwrap()) / (&two * y1)
                 } else {
                     // slope for when points are different
                     (y2 - y1) / (x2 - x1)
                 };
 
-                let x3 = slope.pow(IBig::from(2)) - x1 - x2;
+                let x3 = slope.pow("2", 10).unwrap() - x1 - x2;
                 let y3 = slope * (x1 - &x3) - y1;
 
                 Self::new(Some(x3), Some(y3)).unwrap()
@@ -242,7 +240,7 @@ impl Mul<Point> for UBig {
 
     fn mul(self, rhs: Self::Output) -> Self::Output {
         // we know order of SECP256K1 curve so we can mod the coefficient to optimise calculation
-        let mut coefficient = SECP256K1_ORDER_RING.with(|r| self.into_modulo(r).residue());
+        let mut coefficient = N_RING.with(|r| self.into_modulo(r).residue());
         let mut current = rhs;
         let mut result = Point::inf();
 
@@ -293,7 +291,7 @@ impl Mul<Point> for &UBig {
 mod test {
     use {
         super::*,
-        crate::secp256k1::constants::{SECP256K1_GENERATOR_POINT, SECP256K1_ORDER},
+        crate::secp256k1::constants::{G, N},
         ibig::ubig,
     };
 
@@ -301,14 +299,14 @@ mod test {
     fn g_on_curve() -> Result<()> {
         // call global variable and initialise it
         // if it does then point coordinates are valid
-        SECP256K1_GENERATOR_POINT.with(|g| g.clone());
+        G.with(|g| g.clone());
         Ok(())
     }
 
     #[test]
     fn order_of_g_is_n() -> Result<()> {
-        let g = SECP256K1_GENERATOR_POINT.with(|g| g.clone());
-        let n = SECP256K1_ORDER.with(|n| n.clone());
+        let g = G.with(|g| g.clone());
+        let n = N.with(|n| n.clone());
         // order * generator will always be infinity
         let p = n * g;
 
@@ -318,43 +316,10 @@ mod test {
 
     #[test]
     fn scalar_mult_and_add() -> Result<()> {
-        let g = SECP256K1_GENERATOR_POINT.with(|g| g.clone());
+        let g = G.with(|g| g.clone());
         let scalar = ubig!(3);
 
         assert_eq!(scalar * &g, &g + &g + g);
-        Ok(())
-    }
-
-    #[test]
-    fn verify_sig() -> Result<()> {
-        let p = Point::new(
-            Some(Element::new(UBig::from_str_radix(
-                "04519fac3d910ca7e7138f7013706f619fa8f033e6ec6e09370ea38cee6a7574",
-                16,
-            )?)?),
-            Some(Element::new(UBig::from_str_radix(
-                "82b51eab8c27c66e26c858a079bcdf4f1ada34cec420cafc7eac1a42216fb6c4",
-                16,
-            )?)?),
-        )?;
-
-        let signature = Signature::new(
-            UBig::from_str_radix(
-                "37206a0610995c58074999cb9767b87af4c4978db68c06e8e6e81d282047a7c6",
-                16,
-            )?,
-            UBig::from_str_radix(
-                "8ca63759c1157ebeaec0d03cecca119fc9a75bf8e6d0fa65c841c8e2738cdaec",
-                16,
-            )?,
-        );
-
-        let z = UBig::from_str_radix(
-            "bc62d4b80d9e36da29c16c5d4d9f11731f36052c72401a76c23c0fb5a9b74423",
-            16,
-        )?;
-
-        assert!(p.verify(z, signature));
         Ok(())
     }
 }

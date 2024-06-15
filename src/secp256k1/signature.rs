@@ -1,6 +1,8 @@
-use std::fmt::{self, Display, Formatter};
-
-use ibig::UBig;
+use {
+    hex::encode_upper,
+    ibig::UBig,
+    std::fmt::{self, Display, Formatter},
+};
 
 pub struct Signature {
     r: UBig,
@@ -49,7 +51,7 @@ impl Signature {
         // create final signature
         enc = [&[0x30_u8, enc.len() as u8], enc.as_slice()].concat();
 
-        format!("{:X?}", enc)
+        encode_upper(enc)
     }
 }
 

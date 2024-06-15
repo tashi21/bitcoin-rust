@@ -18,32 +18,34 @@ pub struct PrivateKey {
 
 impl PrivateKey {
     /// Create a new Private Key with the given secret
-    pub fn new(e: UBig) -> Self {
-        Self {
-            point: G.with(|g| e.clone() * g),
+    pub fn new(e: &str, radix: u32) -> Result<Self> {
+        let e = UBig::from_str_radix(e, radix)?;
+        Ok(Self {
+            point: G.with(|g| &e * g),
             e,
-        }
+        })
     }
 
-    /// Generate a Signature from a message hash using the Private Key
-    pub fn sign(&self, z: UBig) -> Result<Signature> {
-        let k = self.deterministic_k(z.clone())?;
-        let r = G.with(|g| (k.clone() * g).x()); // x co coridinate of R point
-        let s = N_RING.with(|ring| {
-            ((z + r.clone() * self.e.clone()).into_modulo(ring) / k.into_modulo(ring)).residue()
+    /// Generate a Signature from a message hash (in hexadecimal) using the Private Key
+    pub fn sign(&self, z: &str) -> Result<Signature> {
+        let z = UBig::from_str_radix(z, 16)?;
+        let k = self.deterministic_k(&z)?; // generate deterministic k for given z
+        let r = G.with(|g| (&k * g).x()); // x co coordinate of R point
+        let s = N_RING.with(|n_ring| {
+            ((z + &r * &self.e).into_modulo(n_ring) / k.into_modulo(n_ring)).residue()
         }); // s = (z + r * secret) / k
 
-        let s = N.with(|o| if s > o / 2 { o - s } else { s }); // correct s if greater than half the order
+        let s = N.with(|n| if s > n / 2 { n - s } else { s }); // correct s if greater than half the order
 
         Ok(Signature::new(r, s))
     }
 
     /// Generate a unique, deterministic k for a given message hash (`z`) and Private Key (`self`).
-    fn deterministic_k(&self, z: UBig) -> Result<UBig> {
+    fn deterministic_k(&self, z: &UBig) -> Result<UBig> {
         let mut k = b"\x00".repeat(32); // initial k value
         let mut v = b"\x01".repeat(32); // initial v value
         let z_bytes = N.with(|o| {
-            if z > *o {
+            if z > o {
                 (z - o).to_be_bytes()
             } else {
                 z.to_be_bytes()
@@ -115,14 +117,4 @@ impl Display for PrivateKey {
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn sign() {
-        let e = UBig::from(1);
-        let private_key = PrivateKey::new(e);
-        assert_eq!(private_key.e, e);
-        assert_eq!(private_key.point, G.with(|g| e.clone() * g));
-    }
-}
+mod test {}

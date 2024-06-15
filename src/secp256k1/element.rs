@@ -282,7 +282,7 @@ mod test {
     #[test]
     fn unequal() -> Result<()> {
         let e1 = Element::new("2", 10)?;
-        let e2 = Element::new("2", 10)?;
+        let e2 = Element::new("3", 10)?;
 
         assert!(e1 != e2);
         Ok(())
